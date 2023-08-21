@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   <meta charset="utf-8"/>
+   <title>Digital Signature PKCS7 From Hash (File Version)</title>  
+   <script type="text/javascript" src="/SgDataCryptoJsLitev1.7.min.js"></script>
+   
+   <script language="JavaScript" type="text/javascript">
+
+		var privateKeyBuffer = new ArrayBuffer(0); // ArrayBuffer with loaded private key
+		var certificateBuffer = new ArrayBuffer(0); // ArrayBuffer with loaded certificate
+		
+		function setCopyRight() {
+			year = new Date().getYear();
+			year = (year < 1900 ? year + 1900 : year);
+			
+			var crLabel = "&copy; Copyright 1996-" + year + ", SeguriData Privada S.A. de C.V.";
+			document.getElementById("copyright").innerHTML = crLabel;
+		}
+		
+		function handleParsingPrivKeyFile(evt)
+        {
+            var temp_reader = new FileReader();
+
+            var current_files = evt.target.files;
+
+            temp_reader.onload =
+            function(event)
+            {
+                privateKeyBuffer = event.target.result;
+            };
+
+            temp_reader.readAsArrayBuffer(current_files[0]);
+        }
+		
+		function handleParsingCertFile(evt)
+        {
+            var temp_reader = new FileReader();
+
+            var current_files = evt.target.files;
+
+            temp_reader.onload =
+            function(event)
+            {
+                certificateBuffer = event.target.result;
+            };
+
+            temp_reader.readAsArrayBuffer(current_files[0]);
+        }
+	
+		function signData() {
+			//Validating form variables
+			
+			if(document.getElementById("password").value == '') {
+				alert("You must enter private key password");
+				document.getElementById("password").focus();
+				return;
+			}
+		
+			if(privateKeyBuffer.byteLength === 0) {
+                alert("You must select signer's private key");
+				document.getElementById("privkey_file").focus();
+				return;
+            }
+			
+			if(certificateBuffer.byteLength === 0) {
+                alert("You must select signer's certificate");
+				document.getElementById("certificate_file").focus();
+				return;
+            }
+		
+			if (document.getElementById("hashToSign").value == '') {
+				alert("You must enter hash to sign");
+				document.getElementById("hashToSign").focus();
+				return;
+			}
+		 
+			var hashAlgorithm;
+			var hashOption = document.getElementById("hashAlg").value;
+			document.getElementById("signature").innerHTML = "";
+			
+			switch(hashOption)
+			{
+				case "alg_SHA1":
+					hashAlgorithm = "sha1";
+					break;
+				case "alg_SHA256":
+					hashAlgorithm = "sha256";
+					break;
+				case "alg_SHA384":
+					hashAlgorithm = "sha384";
+					break;
+				case "alg_SHA512":
+					hashAlgorithm = "sha512";
+					break;
+				default:;
+			}
+			
+			var cipheredKey;
+			var privateKeyBufferString = arrayBufferToString(privateKeyBuffer);
+			var pKey = privateKeyBufferString.replace(/(-----(BEGIN|END) PRIVATE KEY-----|\r\n)/g, '');
+			
+			if(pKey.charAt(0) === "M") {
+				cipheredKey = window.atob(pKey);
+			}
+			else {
+				cipheredKey = privateKeyBufferString;
+			}
+			
+			var certX509;
+			var certificateBufferString = arrayBufferToString(certificateBuffer);
+			var pCert = certificateBufferString.replace(/(-----(BEGIN|END) CERTIFICATE-----|\r\n)/g, '');
+			
+			if(pCert.charAt(0) === "M") {
+				certX509 = window.atob(pCert);
+			}
+			else {
+				certX509 = certificateBufferString;
+			}
+		
+			try {
+				//Getting password and data to sign
+				var password = document.getElementById("password").value;
+				var hashToSign = document.getElementById("hashToSign").value;
+			
+				// Signing hash
+				if (window.Promise) {
+					var signPromise = pkcs7FromHash(password, cipheredKey, certX509, hashAlgorithm, hashToSign, true);
+				
+					signPromise.then(function(Signature) {
+						document.getElementById("signature").innerHTML = Signature;
+					}, function(error) {
+						if(error.indexOf("Unexpected format or file") != -1) {
+							var result1 = openOldKey(cipheredKey, password);
+							
+							if(result1.indexOf("Error") != -1) {
+								alert("[SgDataCrypto] - " + result1);
+								document.getElementById("signature").innerHTML = "";							
+							} else {
+
+								result1 = signHash_2(hashToSign, hashAlgorithm, btoa(certX509), result1, password, true);
+								
+								if(result1.indexOf("Error") != -1) {
+									alert("[SgDataCrypto] - " + result1);
+									document.getElementById("signature").innerHTML = "";							
+								} else {
+									document.getElementById("signature").innerHTML = result1;
+								}
+							}
+				
+						} else {
+							alert("[SgDataCrypto] - " + error);
+							document.getElementById("signature").innerHTML = "";
+						}					});
+				} else {
+					alert("Your current browser does not support Promises! This page will not work.");
+				}
+			} catch(err) {
+				alert("[SgDataCrypto] - " + err.message + "\n" + err.stack);
+			}
+		} //End of signData 
+   </script>
+</head>
+<body onLoad="setCopyRight();">
+    <table>
+	   <tr>
+	      <td><img src="logoSD.jpg" width="282" height="92" alt="SeguriData" border="0"></td>
+	   </tr>
+	</table>
+	<h3>Digital Signature PKCS7 From Hash (File Version)</h3>
+	<h3>SgDataCrypto JS Lite v1.7 powered by SeguriData</h3>
+	<table>
+	    <tr>
+	      <td style="font-weight:bold;">Private Key Password</td>
+		</tr>
+	    <tr>
+	      <td><input type="password" id="password" size="64"></td>
+		</tr>	
+	   <tr>
+	      <td>&nbsp;</td>
+	   </tr>		
+	    <tr>
+	      <td style="font-weight:bold;">Private key file (Binary or B64)</td>
+		</tr>
+		<tr>
+		  <td><input type="file" accept=".key" id="privkey_file" title="Load private key file" /></td>
+	   </tr>
+	   <tr>
+	      <td>&nbsp;</td>
+	   </tr>
+	   <tr>
+	      <td style="font-weight:bold;">Certificate file (Binary or B64)</td>
+		</tr>
+		<tr>
+		  <td><input type="file" accept=".cer" id="certificate_file" title="Load certificate file" /></td>
+	   </tr>
+	   <tr>
+	      <td>&nbsp;</td>
+	   </tr>
+	  <tr>
+	      <td style="font-weight:bold;">Hash To Sign</td>
+	   </tr>
+	   <tr>
+	      <td><textarea id="hashToSign" cols="68" rows="4">VZrq0IJk1XldOQlxjN0Fq9SVcuhP5VWQ7vMaiKCP3/0=</textarea></td>
+	   </tr>
+	   <tr>
+	      <td>&nbsp;</td>
+	   </tr>
+	   <tr>
+	      <td style="font-weight:bold;">Hash Algorithm</td>
+	   </tr>
+	   <tr>
+	      <td>
+			<select id="hashAlg">
+				<option value="alg_SHA1">SHA-1</option>
+                <option value="alg_SHA256" selected>SHA-256</option>
+                <option value="alg_SHA384">SHA-384</option>
+                <option value="alg_SHA512">SHA-512</option>
+			</select>
+		  </td>
+	   </tr>
+	   <tr>
+	      <td>&nbsp;</td>
+	   </tr>
+	   <tr>
+	      <td style="font-weight:bold;">PKCS&num;7 (B64)</td>
+	   </tr>
+	   <tr>
+	      <td><textarea id="signature" cols="68" rows="4" readonly></textarea></td>
+	   </tr>
+	   <tr>
+	      <td>&nbsp;</td>
+	   </tr>
+	   <tr>
+		  <td><button name="button" onclick="signData()">Sign</button></td>
+	   </tr>
+	</table>
+	<br/>
+	<div>
+		<p id="copyright" style="font-weight:bold;"></p>
+	</div>
+	<script>
+        document.getElementById('privkey_file').addEventListener('change', handleParsingPrivKeyFile, false);
+		document.getElementById('certificate_file').addEventListener('change', handleParsingCertFile, false);
+	</script>
+</body>
+</html>
