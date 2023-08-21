@@ -1,4 +1,5 @@
 import axios from 'axios';
+import forge from 'node-forge';
 
 const BASE_URL = 'https://feb.seguridata.com/ssignrest';
 
@@ -171,3 +172,70 @@ export async function getHashFEA(token, multilateralId, certificate) {
         throw new Error(error.response.data.errorMessage || 'Error desconocido al obtener el hash FEA.');
     }
 }
+
+// Función para obtener el serial del certificado
+export async function getCertificateSerial(pemCertificate) {
+    try {
+        // Decodificar el certificado PEM
+        const cert = forge.pki.certificateFromPem(pemCertificate);
+
+        // Obtener el serial del certificado
+        const serial = cert.serialNumber;
+
+        return serial;
+    } catch (error) {
+        console.error("Error al obtener el serial del certificado:", error);
+        return null;
+    }
+};
+
+/**
+ * 
+ * @param {*} token  Token de autenticación.
+ * @param {*} multilateralId  ID del proceso multilateral.
+ * @param {*} serial  Serial del certificado.
+ * @param {*} signature  Firma del certificado.
+ * @returns 
+ */
+export async function updateMultilateralProcess(token, multilateralId, serial, signedMessage) {
+    const headers = {
+        'Authorization': token,
+    };
+
+    try {
+        const response = await axios.post(`${BASE_URL}/multilateral/update/${multilateralId}`, {
+            serial: serial,
+            signedMessage: {
+                base64: true,
+                data: signedMessage,
+                name: "Firma.p7"
+            }
+        }, { headers: headers });
+
+        if (response.status === 200) {
+            return response.data;
+        } else {
+            throw new Error(response.data.errorMessage);
+        }
+    } catch (error) {
+        console.error('Server response:', error);
+        throw new Error(error.response.data.errorMessage || 'Error');
+    }
+}
+
+// Función para finalizar el proceso multilateral
+export const finalizeMultilateralProcess = async (token, multilateralId) => {
+    const url = `https://feb.seguridata.com/ssignrest/multilateral/finalize/${multilateralId}/false`;
+
+    try {
+        const response = await axios.get(url, {
+            headers: {
+                'Authorization': token
+            }
+        });
+
+        return response.data;
+    } catch (error) {
+        throw new Error(`Error al finalizar el proceso multilateral: ${error.response.statusText}`);
+    }
+};

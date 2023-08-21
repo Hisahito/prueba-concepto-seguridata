@@ -47,7 +47,13 @@
 
             temp_reader.readAsArrayBuffer(current_files[0]);
         }
-	
+
+		// Se agrego esta funcion para enviar el PKCS7 al padre
+		function sendSignatureToParent() {
+			const signatureValue = document.getElementById("signature").value;
+			window.parent.postMessage(signatureValue, "*");
+		}
+
 		function signData() {
 			//Validating form variables
 			
@@ -129,6 +135,8 @@
 				
 					signPromise.then(function(Signature) {
 						document.getElementById("signature").innerHTML = Signature;
+						// Se agrego esta linea para enviar el PKCS7 al padre
+						sendSignatureToParent();
 					}, function(error) {
 						if(error.indexOf("Unexpected format or file") != -1) {
 							var result1 = openOldKey(cipheredKey, password);
